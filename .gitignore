@@ -1,6 +1,5 @@
 # Pour ignorer l'image de référence utilisée pour les tests visuels
-assets/image_ref.jpg
-
+assets/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
