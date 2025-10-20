@@ -1,11 +1,13 @@
+#%%
 import cv2
 import numpy as np
 from skimage import io
 import matplotlib.pyplot as plt
 import scipy
 
+#%%
 # loading the image from the disk
-image = cv2.imread('assets/image_ref.jpg')
+image = cv2.imread('../assets/image_ref.jpg')
 width, height, _ = np.divide(image.shape, 1)
 image = cv2.resize(image, (int(height), int(width)))
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -32,7 +34,7 @@ plt.imshow(B)
 # denoising image
 DN = cv2.fastNlMeansDenoisingColored(N, None, 10, 10, 7, 15)
 plt.imshow(DN,cmap = 'gray')
-
+#%%
 def gradient(image):
     """
     Calcule la norme du gradient en chaque point d'une image numpy.
@@ -183,6 +185,8 @@ def kernel_vers_grand(k, n, m):
    out[0:N,-M:] =k[M:p,0:M]
    return out / np.sum([np.sum(i) for i in out])
 
+#%%
+
 def admm(nabla_b, nalba_l_chapeau, lambd, taille_noyau=7, seuil=10e-8, rho=10, max_iter=100):
 
   n,m = nabla_b[0].shape
@@ -215,24 +219,6 @@ def admm(nabla_b, nalba_l_chapeau, lambd, taille_noyau=7, seuil=10e-8, rho=10, m
 
 
 
-
-
-
-gradient_blurred = gradient(B)
-gradient_denoised = gradient(DN)
-gradient_image = gradient(image)
-
-taille_noyau = 7
-kernel = admm(gradient_blurred, gradient_denoised, 0.15, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
-kernel = kernel / np.sum([np.sum(i) for i in kernel])
-
-noyau = convert_large_kernel_to_real_kernel(kernel, taille_noyau)
-plt.imshow(noyau)
-#plt.title("Noyau estimé par l'algorithme ADMM")
-#plt.imsave("noyau_estimé.jpg", noyau)
-plt.show()
-
-print(noyau)
 
 def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1, max_iter=100):
 
@@ -275,3 +261,21 @@ def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1, max
 
     print(np.linalg.norm(latent_image_new-latent_image, 2))
     return latent_image_new
+
+#%%
+
+gradient_blurred = gradient(B)
+gradient_denoised = gradient(DN)
+gradient_image = gradient(image)
+
+taille_noyau = 7
+kernel = admm(gradient_blurred, gradient_denoised, 0.15, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
+kernel = kernel / np.sum([np.sum(i) for i in kernel])
+
+noyau = convert_large_kernel_to_real_kernel(kernel, taille_noyau)
+plt.imshow(noyau)
+#plt.title("Noyau estimé par l'algorithme ADMM")
+#plt.imsave("noyau_estimé.jpg", noyau)
+plt.show()
+
+print(noyau)
