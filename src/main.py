@@ -32,8 +32,12 @@ B = np.array(cv2.filter2D(cus, -1, cv2.flip(kernel_base, -1)))
 plt.imshow(B)
 
 # denoising image
-DN = cv2.fastNlMeansDenoisingColored(N, None, 10, 10, 7, 15)
+DN = cv2.fastNlMeansDenoisingColored(N, None, 4, 4, 7, 15)
 plt.imshow(DN,cmap = 'gray')
+plt.show()
+
+plt.imshow(image)
+plt.show()
 
 
 
