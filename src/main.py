@@ -14,7 +14,7 @@ image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 #plt.imshow(image)
 
 # noisy image
-noise = 20*np.random.normal(0, 0.6, image.shape)
+noise = 10*np.random.normal(0, 0.6, image.shape)
 N = np.clip((image + noise).astype(np.int64), 0, 255).astype(np.uint8)
 plt.imshow(N)
 
@@ -48,7 +48,7 @@ def kernel_vers_grand(k, n, m):
    out[-M:,-M:] =k[0:M,0:M]
    out[-M:,0:N] =k[0:M,M:p]
    out[0:N,-M:] =k[M:p,0:M]
-   return out / np.sum([np.sum(np.abs(i)) for i in out])
+   return out
 
 ## Soft threshold
 def soft_threshold_one_coordinate(lambd, x):
@@ -143,11 +143,11 @@ def convolution_circulaire(img1, img2):
 
     return conv_circ
 
-kernel_derivation_x = 0.5*kernel_vers_grand(np.array([[0, 0, 0],
+kernel_derivation_x = kernel_vers_grand(np.array([[0, 0, 0],
                                                       [1, 0, -1],
                                                       [0, 0, 0]]), 270, 480)
 
-kernel_derivation_y = 0.5*kernel_vers_grand(np.array([[0, 1, 0],
+kernel_derivation_y = kernel_vers_grand(np.array([[0, 1, 0],
                                                       [0, 0, 0],
                                                       [0, -1, 0]]), 270,480)
 def gradient(image):
@@ -188,18 +188,6 @@ def normal_projection_kernel(kernel, taille_support):
 
     return proj
 
-def kernel_vers_grand(k, n, m):
-   p = len(k)
-   N = (len(k)+1)//2
-   M = len(k)-N
-
-   out = np.zeros((n, m))
-   out[0:N,0:N] =k[M:p,M:p]
-   out[-M:,-M:] =k[0:M,0:M]
-   out[-M:,0:N] =k[0:M,M:p]
-   out[0:N,-M:] =k[M:p,0:M]
-   return out / np.sum([np.sum(np.abs(i)) for i in out])
-
 #%%
 
 def admm(nabla_b, nalba_l_chapeau, lambd, taille_noyau=7, seuil=10e-8, rho=10, max_iter=100):
@@ -237,10 +225,7 @@ def admm(nabla_b, nalba_l_chapeau, lambd, taille_noyau=7, seuil=10e-8, rho=10, m
 
 def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1.0, max_iter=100):
 
-    n,m = blurred[:,:,0].shape
-
-    #blurred en noir et blanc
-    blurred = np.mean(blurred, axis=2)
+    n,m = blurred.shape
 
     u_x, u_y = np.zeros((n, m)), np.zeros((n, m))
     u_x_new, u_y_new= np.zeros((n, m)), np.zeros((n, m))
@@ -255,17 +240,18 @@ def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1.0, m
     while  i==0 or (np.linalg.norm(u_y-u_y_new, 'fro') + np.linalg.norm(u_x-u_x_new, 'fro') > seuil and i < max_iter):
       print(np.linalg.norm(u_y-u_y_new, 'fro') + np.linalg.norm(u_x-u_x_new, 'fro'))
 
-      u_x_new, u_y_new = u_x, u_y
+      u_x, u_y = u_x_new, u_y_new
       
       v_x = z_x - u_x
       v_y = z_y - u_y
       x = resoud_quad_fourier([kernel, kernel_derivation_x, kernel_derivation_y], [blurred, v_x, v_y])
-      x = np.clip(x, 0, 255)
 
       v_x = convolution_circulaire(x, kernel_derivation_x) + u_x
       v_y = convolution_circulaire(x, kernel_derivation_y) + u_y
       z_x = minimizer_soft_threshold(lambd, (v_x + nalba_l_chapeau[0])/(2*beta + rho), 2*beta + rho)
       z_y = minimizer_soft_threshold(lambd, (v_y + nalba_l_chapeau[1])/(2*beta + rho), 2*beta + rho)
+
+      x = np.clip(x, 0, 255)
 
       u_x_new = u_x + convolution_circulaire(x, kernel_derivation_x) - z_x
       u_y_new = u_y + convolution_circulaire(x, kernel_derivation_y) - z_y
@@ -282,27 +268,51 @@ gradient_denoised = gradient(DN)
 gradient_image = gradient(image)
 
 taille_noyau = 7
-kernel = admm(gradient_blurred, gradient_denoised, 0.15, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
+kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
 kernel = kernel / np.sum([np.sum(i) for i in kernel])
 
 noyau = convert_large_kernel_to_real_kernel(kernel, taille_noyau)
-# plt.imshow(noyau)
+plt.imshow(noyau)
 #plt.title("Noyau estimé par l'algorithme ADMM")
 #plt.imsave("noyau_estimé.jpg", noyau)
 plt.show()
 
-#print(noyau)
+print(noyau)
 
 #%%
-deblurred = admm2(B, gradient_denoised, kernel, 0.1, 0.1, seuil=1e-3 , max_iter=30)
+deblurred = admm2(B, gradient_denoised, kernel, 0.01, 0.1, seuil=1e-3 , max_iter=5)
 plt.imshow(deblurred.astype(np.uint8))
 plt.show()
+
 # %%
+plt.imshow(np.mean(image, axis=2).astype(np.uint8))
+plt.imsave("../assets/image_originale.jpg", np.mean(image, axis=2).astype(np.uint8))
+plt.show()
+ 
+# %%
+devblurred = np.mean(B, axis=2)
 gradient_denoised = gradient(DN)
+gradient_blurred = gradient(devblurred)
 for i in range(10):
    kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=15, taille_noyau=taille_noyau)
    kernel = kernel / np.sum([np.sum(i) for i in kernel])
-   devblurred = admm2(B, gradient_denoised, kernel, 0.1, 0.1, seuil=1e-3 , max_iter=3)
+   devblurred = admm2(devblurred, gradient_denoised, kernel, 0, 0.4, seuil=1e-3 , max_iter=15)
    gradient_denoised = gradient(devblurred)
-plt.imshow(devblurred.astype(np.uint8))
+   gradient_blurred = gradient(devblurred)
+   plt.imsave(f"../assets/deblurred_iter_{i}.jpg", devblurred)
+plt.imshow(devblurred)
 plt.show()
+
+
+#%%
+
+dirac = np.zeros((7,7))
+dirac[3][3] = 1
+n, m = 270, 480
+kernel_identity = kernel_vers_grand(dirac, n, m)
+gradient_identity = gradient(kernel_identity)
+
+print(gradient_identity[0])
+# %%
+print(devblurred)
+# %%
