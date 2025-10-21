@@ -34,21 +34,21 @@ plt.imshow(B)
 # denoising image
 DN = cv2.fastNlMeansDenoisingColored(N, None, 10, 10, 7, 15)
 plt.imshow(DN,cmap = 'gray')
+
+
+
 #%%
-def gradient(image):
-    """
-    Calcule la norme du gradient en chaque point d'une image numpy.
-    """
-    # Si l'image est en couleur, on la convertit en niveaux de gris (moyenne simple)
-    if image.ndim == 3:
-        image_gray = np.mean(image, axis=2)
-    else:
-        image_gray = image.astype(float)
+def kernel_vers_grand(k, n, m):
+   p = len(k)
+   N = (len(k)+1)//2
+   M = len(k)-N
 
-    # Calcul des dérivées partielles selon x et y avec np.gradient
-    gy, gx = np.gradient(image_gray)  # gy = dI/dy, gx = dI/dx
-
-    return [gy, gx]
+   out = np.zeros((n, m))
+   out[0:N,0:N] =k[M:p,M:p]
+   out[-M:,-M:] =k[0:M,0:M]
+   out[-M:,0:N] =k[0:M,M:p]
+   out[0:N,-M:] =k[M:p,0:M]
+   return out / np.sum([np.sum(np.abs(i)) for i in out])
 
 ## Soft threshold
 def soft_threshold_one_coordinate(lambd, x):
@@ -67,7 +67,7 @@ def minimizer_soft_threshold(lambd, U, rho):
 
   return soft_threshold(lambd/rho, U)
 
-def resoud_quad_fourier(K, V):
+def resoud_quad_fourier(K, V, lambd=0):
     """
     Trouve une image im qui minimise sum_i || K_i * im - V_i ||^2
     où les K_i sont des filtres et les V_i sont des images respectivement.
@@ -93,7 +93,8 @@ def resoud_quad_fourier(K, V):
     # Pour éviter une division par zéro éventuelle
     denom = np.where(denom == 0, 1e-12, denom)
 
-    im_recon = np.real(ifft2(numer / denom))
+    im_recon = np.real(ifft2(numer / (denom)))
+
     return im_recon
 
 def convert_large_kernel_to_real_kernel(big_kernel, p):
@@ -142,6 +143,20 @@ def convolution_circulaire(img1, img2):
 
     return conv_circ
 
+kernel_derivation_x = 0.5*kernel_vers_grand(np.array([[0, 0, 0],
+                                                      [1, 0, -1],
+                                                      [0, 0, 0]]), 270, 480)
+
+kernel_derivation_y = 0.5*kernel_vers_grand(np.array([[0, 1, 0],
+                                                      [0, 0, 0],
+                                                      [0, -1, 0]]), 270,480)
+def gradient(image):
+    if len(image.shape) == 3:
+        image = np.mean(image, axis=2)
+    grad_x = convolution_circulaire(image, kernel_derivation_x)
+    grad_y = convolution_circulaire(image, kernel_derivation_y)
+    return [grad_x, grad_y]
+
 def array_to_list(array):
   liste = []
   for i in range(len(array)):
@@ -183,7 +198,7 @@ def kernel_vers_grand(k, n, m):
    out[-M:,-M:] =k[0:M,0:M]
    out[-M:,0:N] =k[0:M,M:p]
    out[0:N,-M:] =k[M:p,0:M]
-   return out / np.sum([np.sum(i) for i in out])
+   return out / np.sum([np.sum(np.abs(i)) for i in out])
 
 #%%
 
@@ -220,47 +235,45 @@ def admm(nabla_b, nalba_l_chapeau, lambd, taille_noyau=7, seuil=10e-8, rho=10, m
 
 
 
-def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1, max_iter=100):
+def admm2(blurred, nalba_l_chapeau, kernel, lambd, beta, seuil=10e-8, rho=1.0, max_iter=100):
 
     n,m = blurred[:,:,0].shape
 
-    latent_image = np.zeros((n, m))
-    latent_image_new = latent_image
-    gradient_latent_image = gradient(latent_image)
+    #blurred en noir et blanc
+    blurred = np.mean(blurred, axis=2)
+
+    u_x, u_y = np.zeros((n, m)), np.zeros((n, m))
+    u_x_new, u_y_new= np.zeros((n, m)), np.zeros((n, m))
 
     x = np.zeros((n, m))
-    z = np.zeros((n, m))
-    v = latent_image
+    z_x, z_y = np.zeros((n, m)), np.zeros((n, m))
+    v_x, v_y = np.zeros((n, m)), np.zeros((n, m))
+
+
 
     i=0
-    while  i==0 or (np.linalg.norm(latent_image_new-latent_image, 'fro') > seuil and i < max_iter):
-      print(np.linalg.norm(latent_image_new-latent_image, 2))
+    while  i==0 or (np.linalg.norm(u_y-u_y_new, 'fro') + np.linalg.norm(u_x-u_x_new, 'fro') > seuil and i < max_iter):
+      print(np.linalg.norm(u_y-u_y_new, 'fro') + np.linalg.norm(u_x-u_x_new, 'fro'))
 
-      latent_image = latent_image_new
-      gradient_latent_image = gradient(latent_image)
+      u_x_new, u_y_new = u_x, u_y
+      
+      v_x = z_x - u_x
+      v_y = z_y - u_y
+      x = resoud_quad_fourier([kernel, kernel_derivation_x, kernel_derivation_y], [blurred, v_x, v_y])
+      x = np.clip(x, 0, 255)
 
-      kernel_derivation_x = 0.5*kernel_vers_grand(np.array([[0, 0, 0],
-                                                            [1, 0, -1],
-                                                            [0, 0, 0]]), n, m)
+      v_x = convolution_circulaire(x, kernel_derivation_x) + u_x
+      v_y = convolution_circulaire(x, kernel_derivation_y) + u_y
+      z_x = minimizer_soft_threshold(lambd, (v_x + nalba_l_chapeau[0])/(2*beta + rho), 2*beta + rho)
+      z_y = minimizer_soft_threshold(lambd, (v_y + nalba_l_chapeau[1])/(2*beta + rho), 2*beta + rho)
 
-      kernel_derivation_y = 0.5*kernel_vers_grand(np.array([[0, 1, 0],
-                             [0, 0, 0],
-                             [0, -1, 0]]), n,m)
-
-      x = resoud_quad_fourier([kernel, kernel, kernel, [[1]]], [blurred[:,:,0], blurred[:,:,1], blurred[:,:,1], v])
-      v = z-latent_image
-
-      z = minimizer_soft_threshold(lambd, v, rho)
-      v = x+latent_image
-
-      latent_image_new = latent_image + x-z
+      u_x_new = u_x + convolution_circulaire(x, kernel_derivation_x) - z_x
+      u_y_new = u_y + convolution_circulaire(x, kernel_derivation_y) - z_y
 
       i+= 1
 
-      print(latent_image_new)
-
-    print(np.linalg.norm(latent_image_new-latent_image, 2))
-    return latent_image_new
+    print(np.linalg.norm(u_y-u_y_new, 'fro') + np.linalg.norm(u_x-u_x_new, 'fro'))
+    return x
 
 #%%
 
@@ -273,9 +286,23 @@ kernel = admm(gradient_blurred, gradient_denoised, 0.15, seuil=1e-3 , max_iter=1
 kernel = kernel / np.sum([np.sum(i) for i in kernel])
 
 noyau = convert_large_kernel_to_real_kernel(kernel, taille_noyau)
-plt.imshow(noyau)
+# plt.imshow(noyau)
 #plt.title("Noyau estimé par l'algorithme ADMM")
 #plt.imsave("noyau_estimé.jpg", noyau)
 plt.show()
 
-print(noyau)
+#print(noyau)
+
+#%%
+deblurred = admm2(B, gradient_denoised, kernel, 0.1, 0.1, seuil=1e-3 , max_iter=30)
+plt.imshow(deblurred.astype(np.uint8))
+plt.show()
+# %%
+gradient_denoised = gradient(DN)
+for i in range(10):
+   kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=15, taille_noyau=taille_noyau)
+   kernel = kernel / np.sum([np.sum(i) for i in kernel])
+   devblurred = admm2(B, gradient_denoised, kernel, 0.1, 0.1, seuil=1e-3 , max_iter=3)
+   gradient_denoised = gradient(devblurred)
+plt.imshow(devblurred.astype(np.uint8))
+plt.show()
