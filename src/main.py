@@ -290,8 +290,8 @@ plt.imshow(deblurred.astype(np.uint8))
 plt.show()
 
 # %%
-plt.imshow(np.mean(image, axis=2).astype(np.uint8))
-plt.imsave("../assets/image_originale.jpg", np.mean(image, axis=2).astype(np.uint8))
+plt.imshow(np.mean(B, axis=2).astype(np.uint8))
+plt.imsave("../assets/image_blurred.jpg", np.mean(image, axis=2).astype(np.uint8))
 plt.show()
  
 # %%
@@ -299,14 +299,14 @@ plt.show()
 blurred = np.mean(B, axis=2).astype(np.uint8)
 gradient_blurred = gradient(B)
 gradient_denoised = gradient(DN)
-for i in range(15):
+for i in range(25):
    print("Iteration ", i, "en cours...")
-   kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=20, taille_noyau=taille_noyau)
+   kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=5, taille_noyau=taille_noyau)
    kernel = kernel / np.sum([np.sum(i) for i in kernel])
-   devblurred = admm2(blurred, gradient_denoised, kernel, 0, 0.49, seuil=1 , max_iter=30)
+   devblurred = admm2(blurred, gradient_denoised, kernel, 0.1, 0.49, seuil=1 , max_iter=5)
    gradient_denoised = gradient(devblurred)
-   plt.imsave(f"../assets/deblurred_iter_{i}.jpg", devblurred)
-   plt.imsave(f"../assets/kernel_iter_{i}.jpg", convert_large_kernel_to_real_kernel(kernel, taille_noyau))
+   plt.imsave(f"../assets/test2/deblurred_iter_{i}.jpg", devblurred)
+   plt.imsave(f"../assets/test2/kernel_iter_{i}.jpg", convert_large_kernel_to_real_kernel(kernel, taille_noyau))
 plt.imshow(devblurred)
 plt.show()
 
