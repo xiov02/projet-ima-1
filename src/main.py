@@ -14,7 +14,7 @@ image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 #plt.imshow(image)
 
 # noisy image
-noise = 10*np.random.normal(0, 0.6, image.shape)
+noise = 20*np.random.normal(0, 0.6, image.shape)
 N = np.clip((image + noise).astype(np.int64), 0, 255).astype(np.uint8)
 plt.imshow(N)
 
@@ -32,11 +32,12 @@ B = np.array(cv2.filter2D(cus, -1, cv2.flip(kernel_base, -1)))
 plt.imshow(B)
 
 # denoising image
-DN = cv2.fastNlMeansDenoisingColored(N, None, 4, 4, 7, 15)
-plt.imshow(DN,cmap = 'gray')
+DN = cv2.fastNlMeansDenoisingColored(N, None, 10, 10, 7, 15)
+plt.imshow(N,cmap = 'gray')
 plt.show()
 
-plt.imshow(image)
+plt.imshow(DN,cmap = 'gray')
+plt.imsave("../assets/image_denoised.jpg", np.mean(DN, axis=2).astype(np.uint8))
 plt.show()
 
 
@@ -272,7 +273,7 @@ gradient_denoised = gradient(DN)
 gradient_image = gradient(image)
 
 taille_noyau = 7
-kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
+kernel = admm(gradient_blurred, gradient_denoised, 0.15, seuil=1e-3 , max_iter=100, taille_noyau=taille_noyau)
 kernel = kernel / np.sum([np.sum(i) for i in kernel])
 
 noyau = convert_large_kernel_to_real_kernel(kernel, taille_noyau)
@@ -294,16 +295,18 @@ plt.imsave("../assets/image_originale.jpg", np.mean(image, axis=2).astype(np.uin
 plt.show()
  
 # %%
-devblurred = np.mean(B, axis=2)
+
+blurred = np.mean(B, axis=2).astype(np.uint8)
+gradient_blurred = gradient(B)
 gradient_denoised = gradient(DN)
-gradient_blurred = gradient(devblurred)
-for i in range(10):
-   kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=15, taille_noyau=taille_noyau)
+for i in range(15):
+   print("Iteration ", i, "en cours...")
+   kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=20, taille_noyau=taille_noyau)
    kernel = kernel / np.sum([np.sum(i) for i in kernel])
-   devblurred = admm2(devblurred, gradient_denoised, kernel, 0, 0.4, seuil=1e-3 , max_iter=15)
+   devblurred = admm2(blurred, gradient_denoised, kernel, 0, 0.49, seuil=1 , max_iter=30)
    gradient_denoised = gradient(devblurred)
-   gradient_blurred = gradient(devblurred)
    plt.imsave(f"../assets/deblurred_iter_{i}.jpg", devblurred)
+   plt.imsave(f"../assets/kernel_iter_{i}.jpg", convert_large_kernel_to_real_kernel(kernel, taille_noyau))
 plt.imshow(devblurred)
 plt.show()
 
