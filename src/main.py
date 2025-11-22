@@ -9,6 +9,8 @@ import scipy
 # loading the image from the disk
 image = cv2.imread('../assets/image_ref.jpg')
 width, height, _ = np.divide(image.shape, 1)
+width = int(width)
+height = int(height)
 image = cv2.resize(image, (int(height), int(width)))
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 #plt.imshow(image)
@@ -150,11 +152,11 @@ def convolution_circulaire(img1, img2):
 
 kernel_derivation_x = kernel_vers_grand(np.array([[0, 0, 0],
                                                       [1, 0, -1],
-                                                      [0, 0, 0]]), 270, 480)
+                                                      [0, 0, 0]]), width, height)
 
 kernel_derivation_y = kernel_vers_grand(np.array([[0, 1, 0],
                                                       [0, 0, 0],
-                                                      [0, -1, 0]]), 270,480)
+                                                      [0, -1, 0]]), width, height)
 def gradient(image):
     if len(image.shape) == 3:
         image = np.mean(image, axis=2)
@@ -299,6 +301,8 @@ plt.show()
 blurred = np.mean(B, axis=2).astype(np.uint8)
 gradient_blurred = gradient(B)
 gradient_denoised = gradient(DN)
+print(gradient_denoised[0].shape)
+print(gradient_blurred[0].shape)
 for i in range(25):
    print("Iteration ", i, "en cours...")
    kernel = admm(gradient_blurred, gradient_denoised, 0.1, seuil=1e-3 , max_iter=5, taille_noyau=taille_noyau)
